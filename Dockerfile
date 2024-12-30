@@ -1,5 +1,5 @@
-# Use a lightweight Node.js image
-FROM node:18-alpine
+FROM node:18-bullseye
+RUN apt-get update && apt-get install -y python3 python3-pip build-essential
 
 # Set the working directory in the container
 WORKDIR /app
