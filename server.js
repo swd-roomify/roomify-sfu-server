@@ -1,35 +1,35 @@
 const express = require('express');
 const { Server } = require('socket.io');
 const http = require('http');
-const cors = require('cors'); // Import CORS middleware
+const cors = require('cors');
 const mediasoup = require('mediasoup');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: '*', // Allow all origins
-    methods: ['GET', 'POST'], // Specify allowed HTTP methods
-    allowedHeaders: ['Content-Type'], // Specify allowed headers
+    origin: '*',
+    methods: ['GET', 'POST'],
+    allowedHeaders: ['Content-Type'],
   },
 });
 
 app.use(cors());
 
 const PORT = 8082;
+const numWorkers = 10;
 let rooms = {};
 let workers = [];
 let nextWorkerIdx = 0;
 
-// Create mediasoup workers
 const createWorkers = async () => {
-  const numWorkers = 1; // Adjust as needed
   for (let i = 0; i < numWorkers; i++) {
     const worker = await mediasoup.createWorker();
     workers.push(worker);
   }
 };
 
+// Round robin strategy to select worker
 const getNextWorker = () => {
   const worker = workers[nextWorkerIdx];
   nextWorkerIdx = (nextWorkerIdx + 1) % workers.length;
@@ -40,7 +40,7 @@ io.on('connection', (socket) => {
   console.log(`User connected: ${socket.id}`);
 
   socket.on('createRoom', async (username, callback) => {
-    const roomId = Math.random().toString(36).substr(2, 9); // Generate a room ID
+    const roomId = Math.random().toString(36).substring(2, 9);
     const worker = getNextWorker();
     const router = await worker.createRouter({
       mediaCodecs: [
@@ -85,7 +85,6 @@ io.on('connection', (socket) => {
   });
 });
 
-// Start the server
 server.listen(PORT, async () => {
   await createWorkers();
   console.log(`Server running on port ${PORT}`);
