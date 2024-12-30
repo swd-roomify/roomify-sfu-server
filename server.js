@@ -1,108 +1,92 @@
-const express = require("express");
-const http = require("http");
-const { Server } = require("socket.io");
-const mediasoup = require("mediasoup");
+const express = require('express');
+const { Server } = require('socket.io');
+const http = require('http');
+const cors = require('cors'); // Import CORS middleware
+const mediasoup = require('mediasoup');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*",
-    methods: ["GET", "POST"],
+    origin: '*', // Allow all origins
+    methods: ['GET', 'POST'], // Specify allowed HTTP methods
+    allowedHeaders: ['Content-Type'], // Specify allowed headers
   },
 });
 
-let worker, router, transports = [];
+app.use(cors());
 
-async function createWorker() {
-  worker = await mediasoup.createWorker();
-  worker.on("died", () => {
-    console.error("Mediasoup worker died");
-    process.exit(1);
+const PORT = 8082;
+let rooms = {};
+let workers = [];
+let nextWorkerIdx = 0;
+
+// Create mediasoup workers
+const createWorkers = async () => {
+  const numWorkers = 1; // Adjust as needed
+  for (let i = 0; i < numWorkers; i++) {
+    const worker = await mediasoup.createWorker();
+    workers.push(worker);
+  }
+};
+
+const getNextWorker = () => {
+  const worker = workers[nextWorkerIdx];
+  nextWorkerIdx = (nextWorkerIdx + 1) % workers.length;
+  return worker;
+};
+
+io.on('connection', (socket) => {
+  console.log(`User connected: ${socket.id}`);
+
+  socket.on('createRoom', async (username, callback) => {
+    const roomId = Math.random().toString(36).substr(2, 9); // Generate a room ID
+    const worker = getNextWorker();
+    const router = await worker.createRouter({
+      mediaCodecs: [
+        { kind: 'audio', mimeType: 'audio/opus', clockRate: 48000, channels: 2 },
+        { kind: 'video', mimeType: 'video/H264', clockRate: 90000, parameters: { 'packetization-mode': 1 } },
+      ],
+    });
+
+    rooms[roomId] = { router, users: [{ socketId: socket.id, username }] };
+    socket.join(roomId);
+    callback({ roomId, rtpCapabilities: router.rtpCapabilities });
   });
 
-  router = await worker.createRouter({
-    mediaCodecs: [
-      { kind: "audio", mimeType: "audio/opus", clockRate: 48000, channels: 2 },
-      { kind: "video", mimeType: "video/VP8", clockRate: 90000 },
-      { kind: "video", mimeType: "video/H264", clockRate: 90000, parameters: { "packetization-mode": 1 } },
-    ],
+  socket.on('joinRoom', (roomId, username, callback) => {
+    const room = rooms[roomId];
+    if (!room) {
+      callback({ error: 'Room not found' });
+      return;
+    }
+    room.users.push({ socketId: socket.id, username });
+    socket.join(roomId);
+    callback({ rtpCapabilities: room.router.rtpCapabilities });
   });
 
-  console.log("Worker and Router initialized");
-}
-const consumers = [];
-const producers = [];
-
-io.on("connection", (socket) => {
-  console.log(`Client connected: ${socket.id}`);
-
-  // Gửi RTP Capabilities tới client
-  socket.on("getRouterRtpCapabilities", (data, callback) => {
-    callback(router.rtpCapabilities);
-  });
-
-  // Tạo WebRTC Transport
-  socket.on("createWebRtcTransport", async (_, callback) => {
-    try {
-      const transport = await router.createWebRtcTransport({
-        listenIps: [{ ip: "127.0.0.1", announcedIp: null }], // Cập nhật IP công khai nếu cần
-        enableUdp: true,
-        enableTcp: true,
-        preferUdp: true,
-      });
-
-      transports.push(transport);
-
-      callback({
-        id: transport.id,
-        iceParameters: transport.iceParameters,
-        iceCandidates: transport.iceCandidates,
-        dtlsParameters: transport.dtlsParameters,
-      });
-    } catch (error) {
-      console.error("Error creating WebRtcTransport:", error);
-      callback({ error: error.message });
+  socket.on('getRouterRtpCapabilities', (roomId, callback) => {
+    const room = rooms[roomId];
+    if (room) {
+      callback(room.router.rtpCapabilities);
+    } else {
+      callback({ error: 'Room not found' });
     }
   });
 
-  // Kết nối WebRTC Transport
-  socket.on("connectWebRtcTransport", async ({ transportId, dtlsParameters }, callback) => {
-    const transport = transports.find((t) => t.id === transportId);
-
-    if (!transport) {
-      return callback({ error: "Transport not found" });
-    }
-
-    try {
-      await transport.connect({ dtlsParameters });
-      callback({ success: true });
-    } catch (error) {
-      console.error("Error connecting transport:", error);
-      callback({ error: error.message });
-    }
-  });
-
-  // Tạo Producer cho stream
-  socket.on("produce", async ({ transportId, kind, rtpParameters }, callback) => {
-    const transport = transports.find((t) => t.id === transportId);
-
-    if (!transport) {
-      return callback({ error: "Transport not found" });
-    }
-
-    try {
-      const producer = await transport.produce({ kind, rtpParameters });
-      callback({ id: producer.id });
-    } catch (error) {
-      console.error("Error creating producer:", error);
-      callback({ error: error.message });
+  socket.on('disconnect', () => {
+    console.log(`User disconnected: ${socket.id}`);
+    for (const roomId in rooms) {
+      rooms[roomId].users = rooms[roomId].users.filter((user) => user.socketId !== socket.id);
+      if (rooms[roomId].users.length === 0) {
+        delete rooms[roomId];
+      }
     }
   });
 });
 
-createWorker().then(() => {
-  server.listen(2999, () => {
-    console.log("Server is running on http://localhost:2999");
-  });
+// Start the server
+server.listen(PORT, async () => {
+  await createWorkers();
+  console.log(`Server running on port ${PORT}`);
 });
