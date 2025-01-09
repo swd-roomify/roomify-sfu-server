@@ -67,7 +67,7 @@ const webRtcConfig = {
     listenIps: [
         {
           ip: '0.0.0.0',
-          announcedIp: '192.168.100.207',
+          announcedIp: process.env.SFU_SERVER_URL || '192.168.100.207',
         },
       ],
     enableUdp: true,
@@ -78,7 +78,7 @@ const webRtcConfig = {
 const startMediasoup = async () => {
   const worker = await createWorker();
   mediasoupRouter = await worker.createRouter({ mediaCodecs });
-  console.log("Mediasoup worker created and router initialized.");
+  console.log("Mediasoup worker created and router initialized and running in IP " + webRtcConfig.listenIps[0].announcedIp);
 };
 
 io.on(connection, (socket) => {
