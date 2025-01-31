@@ -1,7 +1,9 @@
 class ProducerTransport {
-    constructor(userId, producerId, producerTransport) {
+    constructor(userId, streamId, videoProducerId, audioProducerId, producerTransport) {
         this._userId = userId;
-        this._producerId = producerId;
+        this._streamId = streamId;
+        this._videoProducerId = videoProducerId;
+        this._audioProducerId = audioProducerId;
         this._producerTransport = producerTransport;
     }
 
@@ -13,12 +15,28 @@ class ProducerTransport {
         this._userId = value;
     }
 
-    get producerId() {
-        return this._producerId;
+    get streamId() {
+        return this._streamId;
     }
 
-    set producerId(value) {
-        this._producerId = value;
+    set streamId(value) {
+        this._streamId = value;
+    }
+
+    get videoProducerId() {
+        return this._videoProducerId;
+    }
+
+    set videoProducerId(value) {
+        this._videoProducerId = value;
+    }
+
+    get audioProducerId() {
+        return this._audioProducerId;
+    }
+
+    set audioProducerId(value) {
+        this._audioProducerId = value;
     }
 
     get producerTransport() {
