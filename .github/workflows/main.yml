@@ -18,16 +18,18 @@ jobs:
       with:
         ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-    - name: Install sshpass
-      run: sudo apt-get update && sudo apt-get install -y sshpass
+    - name: Add host to known_hosts
+      run: |
+        mkdir -p ~/.ssh
+        ssh-keyscan -H pog.threemusketeer.click >> ~/.ssh/known_hosts
     
     - name: Connect, Pull, and Build Docker
       run: |
-        sshpass -p "${{ secrets.SSH_PASS }}" ssh -o StrictHostKeyChecking=no admin@pog.threemusketeer.click << EOF
+        ssh admin@pog.threemusketeer.click << EOF
           set -e
           cd /home/admin/Documents/roomify/roomify-sfu-server
           git stash | true
           git pull origin deploy/develop
           cd /home/admin/Documents/roomify
-          echo "${{ secrets.SSH_PASS }}" | sudo -S docker compose up --build -d
+          echo "${{ secrets.SSH_PASS }}" | sudo -S docker compose up sfu-server --build -d
         EOF
