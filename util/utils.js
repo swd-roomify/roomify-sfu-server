@@ -1,7 +1,6 @@
 const payload = async (...args) => {
     try {
-        const jsonString = JSON.stringify(args);
-        return jsonString;
+        return JSON.stringify(args);
     } catch (error) {
         console.error('Error converting payload to JSON:', error);
         return JSON.stringify({ error: 'Failed to convert payload' });
@@ -18,4 +17,8 @@ const verifyPayload = async (payload) => {
     }
 };
 
-module.exports = { payload, verifyPayload };
+const send = async (socket, type, data) => {
+    socket.emit(type, data ? await payload(data) : undefined);
+};
+
+module.exports = { payload, verifyPayload, send };

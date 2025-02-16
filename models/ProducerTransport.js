@@ -15,6 +15,14 @@ class ProducerTransport {
         this._userId = value;
     }
 
+    get producerTransport() {
+        return this._producerTransport;
+    }
+
+    set producerTransport(value) {
+        this._producerTransport = value;
+    }
+
     get streamId() {
         return this._streamId;
     }
@@ -37,14 +45,6 @@ class ProducerTransport {
 
     set audioProducerId(value) {
         this._audioProducerId = value;
-    }
-
-    get producerTransport() {
-        return this._producerTransport;
-    }
-
-    set producerTransport(value) {
-        this._producerTransport = value;
     }
 }
 
