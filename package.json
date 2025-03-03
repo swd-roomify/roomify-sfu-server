@@ -15,6 +15,7 @@
     "express": "^4.21.2",
     "http": "^0.0.1-security",
     "mediasoup": "^3.15.2",
+    "roomify-sfu-server": "file:",
     "socket.io": "^4.8.1"
   }
 }
