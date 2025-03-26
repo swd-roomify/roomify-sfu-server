@@ -76,7 +76,7 @@ const webRtcConfig = {
     listenIps: [
         {
           ip: '0.0.0.0',
-          announcedIp: process.env.SFU_SERVER_URL || '192.168.102.85',
+          announcedIp: process.env.SFU_SERVER_URL || '127.0.0.1',
         },
       ],
     enableUdp: true,
