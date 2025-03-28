@@ -46,6 +46,15 @@ class ProducerTransport {
     set producerTransport(value) {
         this._producerTransport = value;
     }
+
+    close() {
+        if (this._producerTransport) {
+            this._producerTransport.close();
+            console.log(`Producer transport closed for user: ${this._userId}`);
+        } else {
+            console.warn(`No producer transport to close for user: ${this._userId}`);
+        }
+    }
 }
 
 module.exports = ProducerTransport;

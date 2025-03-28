@@ -150,6 +150,7 @@ io.on(connection, (socket) => {
     const addProducer = (userId, streamId, videoProducerId, audioProducerId, producerTransport) => {
         const pt = new ProducerTransport(userId, streamId, videoProducerId, audioProducerId, producerTransport);
         producerTransports.push(pt);
+        console.log(`Producer transport added for userId: ${userId}, streamId: ${streamId}`);
     };
 
     const findConsumerTransportBySocketId = (socketId) => {
@@ -184,13 +185,18 @@ io.on(connection, (socket) => {
     const handleCreateProducerTransport = async (payload) => {
         try {
             const { userId, streamId } = payload[0];
+            console.log(`Creating producer transport for userId: ${userId}, streamId: ${streamId}`);
 
-            // producer transport here can be used to send both video and audio or even screen sharing to the server
             const producerTransport = await mediasoupRouter.createWebRtcTransport(webRtcConfig);
-    
+
+            if (!producerTransport) {
+                console.error("Failed to create producer transport");
+                return send(err, { message: "Failed to create producer transport" });
+            }
+
             addProducer(userId, streamId, null, null, producerTransport);
-            console.log("Add new producer transport with userId", userId);
-    
+            console.log(`Producer transport successfully created for userId: ${userId}, streamId: ${streamId}`);
+
             const message = {
                 id: producerTransport.id,
                 iceParameters: producerTransport.iceParameters,
@@ -201,7 +207,7 @@ io.on(connection, (socket) => {
             send(producerTransportCreated, message);
         } catch (error) {
             console.error("Error creating producer transport:", error);
-            send(err, "Failed to create producer transport");
+            send(err, { message: "Failed to create producer transport" });
         }
     }
     
@@ -315,16 +321,20 @@ io.on(connection, (socket) => {
         }
     }
     
-    // Create list consume for all producer
-    // TO DO create a list consumer for some specific producers
     const handleConsume = async (payload) => {
         try {
             const [{ rtpCapabilities, nearbyPlayers }] = payload;
     
             const ConsumerTransport = findConsumerTransportBySocketId(socket.id);
+            if (!ConsumerTransport) {
+                console.error(`Consumer transport not found for socket: ${socket.id}`);
+                return send(err, { message: `No consumer transport found for user: ${socket.id}` });
+            }
+    
             const transport = ConsumerTransport.consumerTransport;
             if (!transport) {
-                throw new Error(`Consumer transport not found for socket: ${socket.id}`);
+                console.error(`Transport is undefined for socket: ${socket.id}`);
+                return;
             }
     
             const consumersList = [];
@@ -333,11 +343,33 @@ io.on(connection, (socket) => {
                     const userId = player.user_id;
                     const ProducerTransport = findProducerTransportByUserId(userId);
 
+                    if (!ProducerTransport) {
+                        console.error(`Producer transport not found for user: ${userId}`);
+                        continue;
+                    }
+
                     const videoProducerId = ProducerTransport.videoProducerId;
                     const audioProducerId = ProducerTransport.audioProducerId;
 
-                    mediasoupRouter.canConsume({ videoProducerId, rtpCapabilities });
-                    mediasoupRouter.canConsume({ audioProducerId, rtpCapabilities });
+                    if (!videoProducerId) {
+                        console.error(`Video producer ID not found for user: ${userId}`);
+                        continue;
+                    }
+
+                    if (!audioProducerId) {
+                        console.error(`Audio producer ID not found for user: ${userId}`);
+                        continue;
+                    }
+
+                    if (!mediasoupRouter.canConsume({ producerId: videoProducerId, rtpCapabilities })) {
+                        console.error(`Cannot consume video producer for user: ${userId}`);
+                        continue;
+                    }
+
+                    if (!mediasoupRouter.canConsume({ producerId: audioProducerId, rtpCapabilities })) {
+                        console.error(`Cannot consume audio producer for user: ${userId}`);
+                        continue;
+                    }
 
                     const videoConsumer = await transport.consume({
                         producerId: videoProducerId,
@@ -371,7 +403,7 @@ io.on(connection, (socket) => {
                         producerPaused: audioConsumer.producerPaused,
                     });
                 } catch (error) {
-                    console.log(`Cannot consume producer ${producerId}, error: ${error}`);
+                    console.error(`Cannot consume producer for user: ${player.user_id}, error: ${error}`);
                     continue;
                 }
             }
@@ -386,7 +418,7 @@ io.on(connection, (socket) => {
     const handleProducerTransportDisconnect = (userId) => {
         const ProducerTransport = removeProducerTransportByUserId(userId);
         if (ProducerTransport) {
-            ProducerTransport.producerTransport.close();
+            ProducerTransport.close();
             const stillExists = producerTransports.some(
                 (transport) => transport.userId === userId
             );
@@ -403,7 +435,7 @@ io.on(connection, (socket) => {
     const handleConsumerTransportDisconnect = async (userId) => {
         const ConsumerTransport = removeConsumerTransportByUserId(userId);
         if (ConsumerTransport) {
-            ConsumerTransport.consumerTransport.close();
+            ConsumerTransport.close();
             const stillExists = consumerTransports.some(
                 (transport) => transport.userId === userId
             );

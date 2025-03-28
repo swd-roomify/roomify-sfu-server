@@ -28,6 +28,15 @@ class ConsumerTransport {
     set consumerTransport(value) {
         this._consumerTransport = value;
     }
+
+    close() {
+        if (this._consumerTransport) {
+            this._consumerTransport.close();
+            console.log(`Consumer transport closed for user: ${this._userId}`);
+        } else {
+            console.warn(`No consumer transport to close for user: ${this._userId}`);
+        }
+    }
 }
 
 module.exports = ConsumerTransport;
